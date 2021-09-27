@@ -16,7 +16,7 @@ class Gene:
         self.innov = innov
 
     def __str__(self):
-        return f"Gene:\nType: {self._type}\nInnovation number: {self.innov}"
+        return f"Gene:\n\tType: {self._type}\n\tInnovation number: {self.innov}"
 
 
 class ConnectionGene(Gene):
@@ -28,9 +28,9 @@ class ConnectionGene(Gene):
     
     def __str__(self):
         res = f"Connection Gene: "
-        res += f"\nIn: {self.start}\nOut: {self.end}"
-        res += f"\nEnabled: {self.enabled}"
-        res += f"\nInnovation number: {self.innov}"
+        res += f"\n\tIn: {self.start}\n\tOut: {self.end}"
+        res += f"\n\tEnabled: {self.enabled}"
+        res += f"\n\tInnovation number: {self.innov}"
         return res
 
     def equals(self, other) -> bool:
@@ -46,11 +46,11 @@ class ConnectionGene(Gene):
 
 class NodeGene(Gene):
 
-    def __init__(self, index, innov, _type):
-        super().__init__(GeneType.NODE_GENE, innov)
+    def __init__(self, index, _type):
+        super().__init__(GeneType.NODE_GENE, index)
         self.index = index
         self._type = _type
         self.bias = 0
 
     def __str__(self):
-        return f"Node Gene:\nIndex: {self.index}\nInnovation number: {self.innov}\nBias: {self.bias}\nType: {self._type}"
+        return f"Node Gene:\n\tIndex: {self.index}\n\tInnovation number: {self.innov}\n\tBias: {self.bias}\n\tType: {self._type}"

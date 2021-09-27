@@ -18,7 +18,7 @@ class Network:
         # i-th index -> vector of weights feeding into node i-n (n is the number of input nodes) (they have to be dense I guess)
         # The weights that are not from an actual connection gene are just gonna be 0
         self.weights = np.zeros((num_outputs, num_inputs))
-        self.node_genes = [NodeGene(i,0,NodeType.OUTPUT) for i in range(num_outputs)]+[NodeGene(num_outputs+i,0,NodeType.INPUT) for i in range(num_inputs)]
+        self.node_genes = [NodeGene(i, NodeType.OUTPUT) for i in range(num_outputs)]+[NodeGene(num_outputs+i, NodeType.INPUT) for i in range(num_inputs)]
         self.conn_genes = []
         self.activation = activation
 
@@ -56,7 +56,7 @@ class Network:
         # add the weights feeding into the new node from all of the inputs and all of the other hidden neurons
         # maybe I have to add +1 after self.num_out
         self.weights = np.vstack([self.weights, np.zeros(len(self.nodes)-self.num_out+1)])
-        self.node_genes.append(NodeGene(len(self.node_genes), self.node_genes[-1].innov+1, NodeType.HIDDEN))
+        self.node_genes.append(NodeGene(len(self.node_genes), NodeType.HIDDEN))
         if init_bias:
             self.node_genes[-1].bias = np.random.normal(scale=1)
         self.nodes = np.append(self.nodes, 0)
@@ -69,7 +69,7 @@ class Network:
         self.weights = np.c_[self.weights, np.zeros(len(self.nodes)-self.num_in)]
         self.weights = np.vstack([self.weights, np.zeros(len(self.nodes)-self.num_out+1)])
         self.node_genes.append(node)
-        self.node_genes = np.append(self.nodes, 0)
+        self.nodes = np.append(self.nodes, 0)
 
     def add_conn(self, gene: ConnectionGene, weight=0) -> None:
         # I wanna be clear with error messages
@@ -135,14 +135,14 @@ class Network:
             Disables the connection gene at index conn_idx
         '''
         self.conn_genes[conn_idx].enabled = False
-        self.set_weight(conn_idx, 0)
+        self.set_weight(conn_idx, 0.0)
 
     @dispatch(ConnectionGene)
     def disable_conn(self, conn_gene: ConnectionGene) -> None:
         '''
             Disables the connection represented by conn_gene
         '''
-        self.set_weight(conn_gene, 0)
+        self.set_weight(conn_gene, 0.0)
 
     def get_node_innov_interval(self) -> tuple:
         '''
@@ -166,3 +166,80 @@ class Network:
         except IndexError:
             return 0, 0
         return min_innov, max_innov
+
+    # TODO: use binary search instead, since the innovation numbers are in an increasing order
+    @dispatch(int)
+    def has_node(self, node_innov: int) -> bool:
+        '''
+            Checks whether the node gene with the innovation number passed is also 
+            present in this network
+        '''
+        return node_innov < len(self.node_genes)
+
+    # TODO: use binary search instead, since the innovation numbers are in an increasing order
+    @dispatch(NodeGene)
+    def has_node(self, node_gene: NodeGene) -> bool:
+        '''
+            Checks whether the node gene passed is also present in this network
+        '''
+        return node_gene.index < len(self.node_genes)
+
+    # TODO: use binary search instead, since the innovation numbers are in an increasing order
+    @dispatch(ConnectionGene)
+    def has_weight(self, conn_gene: ConnectionGene) -> bool:
+        '''
+            Checks whether the connection gene passed is also present in this network
+        '''
+        for conn in self.conn_genes:
+            if conn.innov == conn_gene.innov:
+                return True
+        return False
+    
+    @dispatch(int)
+    def has_weight(self, conn_innov: int) -> bool:
+        '''
+            Checks whether the connection gene with the innovation number passed is also 
+            present in this network
+        '''
+        for conn in self.conn_genes:
+            if conn.innov == conn_innov:
+                return True
+        return False
+
+    def get_num_unmatched_node_genes(self, other) -> int:
+        unmatched = 0
+        
+        s_min, s_max = self.get_node_innov_interval()
+        o_min, o_max = other.get_node_innov_interval()
+
+        # the +1 is there simply to include the gene with the highest innov. number
+        for node_innov in range(min(s_min, o_min), max(s_max, o_max)+1):
+            if self.has_node(node_innov) != other.has_node(node_innov):
+                unmatched += 1
+        return unmatched
+
+    def has_conn(self, start: int, end: int) -> bool:
+        for conn_gene in self.conn_genes:
+            if conn_gene.start == start and conn_gene.end == end:
+                return True
+        return False
+
+    def get_unmatched_conn_genes(self, other) -> int:
+        unmatched = 0        
+
+        s_min, s_max = self.get_weight_innov_interval()
+        o_min, o_max = other.get_weight_innov_interval()
+
+        for conn_innov in range(min(s_min, o_min), max(s_max, o_max)+1):
+            if self.has_weight(conn_innov) != other.has_weight(conn_innov):
+                unmatched += 1
+        return unmatched
+
+    def __str__(self) -> str:
+        string = "Network:\n\tNodes:\n"
+        for node_gene in self.node_genes:
+            string += f"\t\tNode #{node_gene.index} type: {node_gene._type}, bias: {node_gene.bias}\n"
+        string += "\tConnections:\n"
+        for conn_gene in self.conn_genes:
+            string += f"\t\tConnection {conn_gene.start} -> {conn_gene.end}, enabled: {conn_gene.enabled}\n"
+        return string

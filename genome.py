@@ -1,10 +1,11 @@
+from math import e
 from network import *
 from gene import *
+from random import randint, choice
 
 class Genome:
-    COMPATIBILITY_THRESHOLD = 3.0
-    EXCESSIVE_GENES_COEFFICIENT = 0.5
-    DISJOINTED_GENES_COEFFICIENT = 0.5
+    COMPATIBILITY_THRESHOLD = 3.0  
+    UNMATCHED_GENES_COEFFICIENT = 0.5
     WEIGHTS_DIFFERENCE_COEFFICIENT = 0.5
 
     def __init__(self, num_inputs, num_outputs, activation):
@@ -16,56 +17,95 @@ class Genome:
         ''' 
             Returns whether the genome belongs to the same species
             as the other one or not
-         '''
-        e, d = 0, 0 # excessive and disjointed genes   
-        # the node genes are in an increasing order of the innovation number 
-        # since new ones are always appended at the end of the list, and new ones
-        # always have a higher innovation number.
-        min_node_innov, max_node_innov = self.network.get_node_innov_interval()
-
-        for gene in other.network.node_genes:
-            if min_node_innov <= gene.innov <= max_node_innov:
-                # Check if the node is also present in this network...
-                found = False
-                for node_gene in self.network.node_genes:
-                    if node_gene.innov == gene.innov:
-                        found = True
-                        break
-                if not found:
-                    d += 1
-            else:
-                e += 1
-        
+        '''
+        unmatched_genes = self.network.get_num_unmatched_node_genes(other)+self.network.get_unmatched_conn_genes(other)
 
         # diff -> average difference between two weights of the same connection present in both networks
         # n -> number of shared connection genes
-        min_conn_innov, max_conn_innov = self.network.get_weight_innov_interval()
-
         diff, n = 0, 0
-        for j in range(len(other.network.conn_genes)):
-            # if the connection gene is not a disjointed gene
-            if min_conn_innov < other.network.conn_genes[j].innov < max_conn_innov:
-                pass
-            else:
-                e += 1
-
-            for i in range(len(self.network.conn_genes)):
-                if self.network.conn_genes[i].innov == other.network.conn_genes[j].innov:
-                    diff += self.network.get_weight(i) - other.network.get_weight(j)
+        for conn_gene in self.network.conn_genes:
+            for other_gene in other.network.conn_genes:
+                if conn_gene.innov == other_gene.innov:
                     n += 1
+                    diff += self.network.get_weight(conn_gene) - other.network.get_weight(other_gene)
         diff /= n
+        self_num_genes = len(self.network.conn_genes)+len(self.network.nodes)
+        other_num_genes = len(other.network.conn_genes)+len(other.network.nodes)
+        N = max(self_num_genes, other_num_genes)
 
-        # N -> amount of genes of the parents with the most of them
-        self_num_genes = len(self.network.node_genes)+len(self.network.conn_genes)
-        other_num_genes = len(other.network.node_genes)+len(other.network.conn_genes)
-        N = np.maximum(self_num_genes, other_num_genes)
+        return self.UNMATCHED_GENES_COEFFICIENT*unmatched_genes/N + self.WEIGHTS_DIFFERENCE_COEFFICIENT*diff
 
-        # the actual delta representing the difference between the two genomes
-        delta = (self.EXCESSIVE_GENES_COEFFICIENT*e+self.DISJOINTED_GENES_COEFFICIENT*d)/N + self.WEIGHTS_DIFFERENCE_COEFFICIENT*diff
+    # TESTED
+    def mutate_add_node(self) -> None:
+        '''
+            Selects a random connection in the network between the nodes a->b, it disables it
+            and it generates a new node c, then it forms the connections a->c and c->b.
+        '''
 
-        return delta <= self.COMPATIBILITY_THRESHOLD
+        # If there are no connection there's no point in trying to form a node to substitute one,
+        # it would just crash the whole program
+        if len(self.network.conn_genes) == 0:
+            return
+        
+        conn_idx = np.random.randint(low=0, high=len(self.network.conn_genes)) # pick the connection in which to form the new node
+        self.network.disable_conn(conn_idx)
+        self.network.gen_node()
+        new_node_idx = self.network.node_genes[-1].index
+        self.network.add_conn(ConnectionGene(self.network.conn_genes[conn_idx].start, new_node_idx, 1))
+        self.network.add_conn(ConnectionGene(new_node_idx, self.network.conn_genes[conn_idx].end, 1))
 
-    # TODO: finish this
+    # TESTED
+    def mutate_add_conn(self, max_attemps=10) -> bool:
+        '''
+            Adds a new random connection gene in the genome (and thus in the network)\n
+            max_attempts is the number of attempts made to generate a unique connection, meaning it
+            determines the amount of times the function finds a new random connection, and discards it if
+            it already exists.\n
+            Returns whether the connection was formed (meaning the attempts were enough to randomly)
+            form a valid connection gene
+        '''
+        # skip the output nodes, since a connection cannot stem from one of them
+        start_valid_interval = (self.network.num_out, len(self.network.node_genes)-1)
+
+        # the intervals in which the index of the ending node can be found, this excludes input nodes
+        if self.network.node_genes[-1]._type == NodeType.HIDDEN:
+            # since the randint() function is inclusive, if there are no hidden neurons the second interval
+            # results in a weight stemming from the last (input) neuron
+            end_valid_intervals = [(0, self.network.num_out-1), 
+                                    (self.network.num_in+self.network.num_out, len(self.network.nodes)-1)]
+        else:
+            end_valid_intervals = [(0, self.network.num_out-1)]
+
+        print(f"svi: {start_valid_interval}")
+        print(f"evi: {end_valid_intervals}")
+
+        valid, attempts = False, 0
+        while not valid and attempts < max_attemps:
+            start_idx = randint(*start_valid_interval)
+            end_idx = randint(*choice(end_valid_intervals)) 
+            # cannot have a connection between a node and one with a lower index, done to avoid loops
+            valid = not self.network.has_conn(start_idx, end_idx) and start_idx > end_idx
+            attempts += 1  
+
+        if not valid:
+            return False
+
+        conn_gene = ConnectionGene(start_idx, end_idx, 1)
+        self.network.add_conn(conn_gene)
+        return True
+
+    # TESTED
+    def mutate_change_weight(self):
+        ''' Changes one of the weights of the network randomly (according to a gaussian distribution) '''
+        conn_idx = np.random.randint(low=0, high=len(self.network.conn_genes)) # pick a random connection to change
+        self.network.set_weight(conn_idx, np.random.normal(scale=1))
+
+    
+    def mutate_change_threshold(self):
+        ''' Changes on the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
+        node_idx = np.random.randint(low=0, high=len(self.network.node_genes))
+        self.network.node_genes[node_idx].bias = np.random.normal(scale=1)
+
     def mutate(self, node_add_prob=0.3, conn_add_prob=0.3, weight_change_prob=0.6, gene_toggle_prob=0.1):
         '''
             Mutates the genome according to the given parameters
@@ -75,6 +115,8 @@ class Genome:
             gene_toggle_prob -> probability that a gene is toggled (meaning it gets enabled or disabled)
         '''
         if np.random.uniform() <= node_add_prob:
-            # Add a node between a given connection already present in the network
-            conn_idx = np.random.randint(high=len(self.network.conn_genes)) # pick the connection in which to form the new node
-            self.network.disable_conn(conn_idx)
+            self.mutate_add_node()
+        if np.random.uniform() <= conn_add_prob:
+            self.mutate_add_conn()
+        if np.random.uniform() <= weight_change_prob:
+            self.mutate_change_weight()

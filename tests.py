@@ -3,50 +3,71 @@ from genome import *
 from network import Network
 from activations import tanh, ReLu
 import numpy as np
+import sys
 
-x = np.array([1,2,3])
+if len(sys.argv) == 1:
+    sys.argv.append("")
 
-net = Network(3, 2, activation=tanh)
+# feed forward test
+if sys.argv[1] == 'fft':
 
-net.gen_node()
+    x = np.array([1,2,3])
 
-for node_gene in net.node_genes:
-    print(node_gene, end='\n'*2)
+    net = Network(3,2,tanh)
+    net.gen_node()
+    net.gen_node()
 
-print(net.get_node_innov_interval())
+    net.add_conn(ConnectionGene(3,6,1))
+    net.add_conn(ConnectionGene(3,5,1))
+    net.add_conn(ConnectionGene(5,0,1))
+    net.add_conn(ConnectionGene(6,1,1))
 
-net.add_conn(ConnectionGene(2,0,1))
-net.add_conn(ConnectionGene(3,5,2))
-net.add_conn(ConnectionGene(5,0,3))
-net.add_conn(ConnectionGene(4,1,4))
+    print(net._predict(x))
 
-net.gen_node()
+elif sys.argv[1] == 'conn_mutation_test':
+    gen = Genome(3,1,ReLu)
+    gen.network.add_conn(ConnectionGene(1,0,0))
+    gen.network.add_conn(ConnectionGene(3,0,1))
 
-net.add_conn(ConnectionGene(3,6,5))
-net.add_conn(ConnectionGene(6,1,6))
-print(net._predict(x))
+    gen.network.gen_node()
+    gen.network.add_conn(ConnectionGene(4,0,2))
 
+    print("Before adding a connection:\n")
+    print(gen.network, end='\n'*2)
 
-'''
-net2 = Network(3, 2, ReLu)
+    gen.mutate_add_conn()
 
-net2.add_conn(ConnectionGene(4,0,1))
-net2.add_conn(ConnectionGene(2,1,2))
-net2.add_conn(ConnectionGene(3,1,5))
-
-print(net2.get_weight_innov_interval())
-
-for conn_gene in net2.conn_genes:
-    print(conn_gene, end='\n'*2)
+    print("After adding a connection:\n")
+    print(gen.network)
 
 
-# test the is_same_species() function
-genome1 = Genome(3,2,tanh)
-genome1.network = net
+elif sys.argv[1] == 'node_mutation_test':
+    gen = Genome(3,1,ReLu)
+    gen.network.add_conn(ConnectionGene(1,0,0))
+    gen.network.add_conn(ConnectionGene(3,0,1))
 
-genome2 = Genome(3,2,tanh)
-genome2.network = net2
+    print("Before adding a node:\n")
+    print(gen.network, end='\n'*2)
 
-print(genome1.are_same_species(genome2))
-print(genome2.are_same_species(genome1))
-'''
+    gen.mutate_add_node()
+
+    print("After adding a node:\n")
+    print(gen.network)
+
+elif sys.argv[1] == 'weight_mutation_test':
+    gen = Genome(3,1,ReLu)
+    gen.network.add_conn(ConnectionGene(1,0,0))
+    gen.network.add_conn(ConnectionGene(3,0,1))
+    gen.network.add_conn(ConnectionGene(2,0,1))
+
+
+    print("Before changing a weight:\n")
+    for conn_gene_idx in range(len(gen.network.conn_genes)):
+        print(f"Connection gene #{conn_gene_idx}: {gen.network.get_weight(conn_gene_idx)}")
+
+    print("\n")
+    gen.mutate_change_weight()
+
+    print("After adding a connection:\n")
+    for conn_gene_idx in range(len(gen.network.conn_genes)):
+        print(f"Connection gene #{conn_gene_idx}: {gen.network.get_weight(conn_gene_idx)}")
