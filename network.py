@@ -10,6 +10,7 @@ from multipledispatch import dispatch
 #       hidden nodes
 
 class Network:
+    ''' Class representing a neural network without layers and with a customizable structure '''
 
     # initializes the most basic structure with no connections
     def __init__(self, num_inputs, num_outputs, activation=none):
@@ -71,7 +72,7 @@ class Network:
         self.node_genes.append(node)
         self.nodes = np.append(self.nodes, 0)
 
-    def add_conn(self, gene: ConnectionGene, weight=0) -> None:
+    def add_conn(self, gene: ConnectionGene) -> None:
         # I wanna be clear with error messages
         if gene.end < gene.start and self.node_genes[gene.end]._type == NodeType.HIDDEN:
             raise ValueError("A connection cannot stem from a node with a higher index than the one it points to!")
@@ -87,13 +88,14 @@ class Network:
             while self.conn_genes[idx].innov > gene.innov:
                 idx -= 1
         except IndexError:
-            idx = 0
-    
-        self.conn_genes.insert(idx+1, gene)
+            idx = -1
+
         # if the weight is 0 there is no connection, wouldn't make sense to add this node, I'll
-        # just assume that the node wasn't set manually and should therefore be initialized randomly
+        # just assume that the node wasn't set manually and should therefore be initialized randomly    
+        gene.weight = 0 if gene.weight != 0 else np.random.uniform()
+        self.conn_genes.insert(idx+1, gene)
         end_node_mat_idx = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
-        self.weights[end_node_mat_idx][gene.start-self.num_out] = weight if weight != 0 else np.random.normal(scale=1)
+        self.weights[end_node_mat_idx][gene.start-self.num_out] = gene.weight
 
     @dispatch(ConnectionGene)
     def get_weight(self, gene: ConnectionGene) -> float:
@@ -108,6 +110,10 @@ class Network:
         '''
             Sets the value of the weight represented by the given connection gene
         '''
+        # Update the weight value of the gene
+        for conn_gene in self.conn_genes:
+            if conn_gene.start == gene.start and conn_gene.end == conn_gene.end:
+                conn_gene.weight = val
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
         self.weights[mat_end_node][gene.start-self.num_out] = val
 
@@ -125,6 +131,7 @@ class Network:
         '''
             Sets the value of the weight represented by the connection gene at index conn_gene_idx
         '''
+        self.conn_genes[conn_gene_idx].weight = val
         gene = self.conn_genes[conn_gene_idx]
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
         self.weights[mat_end_node][gene.start-self.num_out] = val
@@ -135,6 +142,7 @@ class Network:
             Disables the connection gene at index conn_idx
         '''
         self.conn_genes[conn_idx].enabled = False
+        self.conn_genes[conn_idx].weight = self.get_weight(conn_idx)
         self.set_weight(conn_idx, 0.0)
 
     @dispatch(ConnectionGene)
@@ -142,7 +150,34 @@ class Network:
         '''
             Disables the connection represented by conn_gene
         '''
+        for conn in self.conn_genes:
+            if conn.start == conn_gene.start and conn.end == conn_gene.end:
+                conn.enabled = False
+                conn.weight = self.get_weight(conn)
+                break
         self.set_weight(conn_gene, 0.0)
+
+    @dispatch(int)
+    def enable_conn(self, conn_idx: int) -> None:
+        ''' Enables the connection at index conn_idx '''
+        if conn_idx >= len(self.conn_genes):
+            raise ValueError("Cannot enable a connection that is not present in the network!")
+
+        self.conn_genes[conn_idx].enabled = True
+        self.set_weight(conn_idx, self.conn_genes[conn_idx].weight)
+
+    @dispatch(ConnectionGene)
+    def enable_conn(self, conn_gene: ConnectionGene) -> None:
+        ''' 
+            Enables the connection represented by conn_gene, if it isn't already present in the network 
+            this does nothing
+        '''
+        for gene in self.conn_genes:
+            if gene.start == conn_gene.start and gene.end == conn_gene.end:
+                gene.enabled = True
+                self.set_weight(gene, gene.weight)
+                break
+        
 
     def get_node_innov_interval(self) -> tuple:
         '''
@@ -234,6 +269,17 @@ class Network:
             if self.has_weight(conn_innov) != other.has_weight(conn_innov):
                 unmatched += 1
         return unmatched
+
+    # TESTED
+    def get_conn_gene(self, conn_innov: int) -> ConnectionGene:
+        ''' 
+            Returns the connection gene with the given innovation number, and -1 if
+            it isn't in the network
+         '''
+        for conn_gene in self.conn_genes:
+            if conn_gene.innov == conn_innov:
+                return conn_gene
+        return None
 
     def __str__(self) -> str:
         string = "Network:\n\tNodes:\n"

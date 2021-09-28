@@ -76,9 +76,6 @@ class Genome:
         else:
             end_valid_intervals = [(0, self.network.num_out-1)]
 
-        print(f"svi: {start_valid_interval}")
-        print(f"evi: {end_valid_intervals}")
-
         valid, attempts = False, 0
         while not valid and attempts < max_attemps:
             start_idx = randint(*start_valid_interval)
@@ -100,13 +97,22 @@ class Genome:
         conn_idx = np.random.randint(low=0, high=len(self.network.conn_genes)) # pick a random connection to change
         self.network.set_weight(conn_idx, np.random.normal(scale=1))
 
-    
+    # TESTED
     def mutate_change_threshold(self):
         ''' Changes on the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
         node_idx = np.random.randint(low=0, high=len(self.network.node_genes))
         self.network.node_genes[node_idx].bias = np.random.normal(scale=1)
 
-    def mutate(self, node_add_prob=0.3, conn_add_prob=0.3, weight_change_prob=0.6, gene_toggle_prob=0.1):
+    # TESTED
+    def mutate_toggle_gene(self):
+        ''' Toggles a random connection gene, meaning if it's enabled it gets disabled and viceversa '''
+        conn_gene_idx = np.random.randint(low=0, high=len(self.network.conn_genes))
+        if self.network.conn_genes[conn_gene_idx].enabled:
+            self.network.disable_conn(conn_gene_idx)
+        else:
+            self.network.enable_conn(conn_gene_idx)
+
+    def mutate(self, node_add_prob=0.3, conn_add_prob=0.3, weight_change_prob=0.6, threshold_change_prob=0.5, gene_toggle_prob=0.1):
         '''
             Mutates the genome according to the given parameters
             node_add_prob -> probability of adding a new node between a connection\n
@@ -120,3 +126,51 @@ class Genome:
             self.mutate_add_conn()
         if np.random.uniform() <= weight_change_prob:
             self.mutate_change_weight()
+        if np.random.uniform() <= threshold_change_prob:
+            self.mutate_change_threshold()
+        if np.random.uniform() <= gene_toggle_prob:
+            self.mutate_toggle_gene()
+
+
+# TODO: finish this
+def crossover(first: Genome, second: Genome) -> Genome:
+    ''' Returns the cross over between the genomes first and second '''
+    # apply cross over to the connection genes, and then only retain the nodes used in those connections,
+    # this allows to avoid having unnecessaryy unused nodes.
+
+    # KEEP IN MIND THAT THESE ALSO HAVE TO BE ORDERED SUCCESSIVELY
+    conn_genes = [] 
+
+    fittest = first if first.fitness >= second.fitness else second
+
+    f_min_conn_innov, f_max_conn_innov = first.network.get_weight_innov_interval()
+    s_min_conn_innov, s_max_conn_innov = second.network.get_weight_innov_interval()
+
+    disjointed_innovs = [] # innovation numbers of the disjointed connection genes
+
+    for conn_innov in range(min(f_min_conn_innov, s_min_conn_innov), max(f_max_conn_innov, s_max_conn_innov)):
+        first_has_conn, second_has_conn = first.network.has_weight(conn_innov), second.network.has_weight(conn_innov)
+
+        if first_has_conn and second_has_conn:
+            # a matching gene is chosen randomly from the two parents
+            base_network = first.network if np.random.uniform() <= 0.5 else second.network
+            gene = base_network.get_conn_gene(conn_innov)
+            conn_genes.append(gene)
+        elif first_has_conn != second_has_conn: # one has to be true
+            # an unmatching gene is always chosen from the fittest parent
+            disjointed_innovs.append(conn_innov)
+
+    for disj_conn_innov in disjointed_innovs:
+        gene = fittest.network.get_conn_gene(disj_conn_innov)
+        if gene is not None:
+            conn_genes.append(gene)
+
+    
+    for conn_gene in conn_genes:
+        print(conn_gene)
+        print(f"\tWeight: {conn_gene.weight}", end='\n'*2)
+    
+    # GENERATE THE NODES (ONLY KEEP THE ONES USED IN THE CONNECTIONS)
+
+    #num_in, num_out = first.network.num_in, first.network.num_out
+    #node_genes = [NodeGene(i, NodeType.OUTPUT) for i in range(num_out)]+[NodeGene(num_in+i, NodeType.INPUT) for i in range(num_in)]

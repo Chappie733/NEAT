@@ -21,10 +21,11 @@ class Gene:
 
 class ConnectionGene(Gene):
 
-    def __init__(self, start, end, innov, enabled=True):
+    def __init__(self, start, end, innov, enabled=True, weight=0):
         super().__init__(GeneType.CONNECTION_GENE, innov)
         self.start, self.end = start, end  # indexes of ending and starting node
         self.enabled = enabled
+        self.weight = weight # not usually set when the node is created
     
     def __str__(self):
         res = f"Connection Gene: "
