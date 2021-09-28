@@ -99,7 +99,7 @@ class Genome:
 
     # TESTED
     def mutate_change_threshold(self):
-        ''' Changes on the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
+        ''' Changes the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
         node_idx = np.random.randint(low=0, high=len(self.network.node_genes))
         self.network.node_genes[node_idx].bias = np.random.normal(scale=1)
 
