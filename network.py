@@ -100,7 +100,7 @@ class Network:
 
         # if the weight is 0 there is no connection, wouldn't make sense to add this node, I'll
         # just assume that the node wasn't set manually and should therefore be initialized randomly    
-        gene.weight = 0 if gene.weight != 0 else np.random.uniform()
+        gene.weight = 0 if gene.weight != 0 else np.random.normal(scale=1)
         self.conn_genes.insert(idx+1, gene)
         end_node_mat_idx = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
         self.weights[end_node_mat_idx][gene.start-self.num_out] = gene.weight
