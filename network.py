@@ -62,6 +62,10 @@ class Network:
             self.node_genes[-1].bias = np.random.normal(scale=1)
         self.nodes = np.append(self.nodes, 0)
 
+    def gen_nodes(self, num_nodes=2, init_bias=True) -> None:
+        for _ in range(num_nodes):
+            self.gen_node(init_bias=init_bias)
+
     def add_node(self, node: NodeGene) -> None:
         # can't add an input or output node
         if node._type != NodeType.HIDDEN:
@@ -73,10 +77,14 @@ class Network:
         self.nodes = np.append(self.nodes, 0)
 
     def add_conn(self, gene: ConnectionGene) -> None:
-        # I wanna be clear with error messages
+        # In the end I decided to allow connections from a higher index to a lower one, but other parts
+        # of the code (such as in the random mutation part) make checks to avoid them.
+        '''
         if gene.end < gene.start and self.node_genes[gene.end]._type == NodeType.HIDDEN:
             raise ValueError("A connection cannot stem from a node with a higher index than the one it points to!")
-        elif gene.end == gene.start:
+        '''
+        # I wanna be clear with error messages
+        if gene.end == gene.start:
             raise ValueError("A connection should not stem from a node and point to itself!")
         elif self.node_genes[gene.end]._type == NodeType.INPUT:
             raise ValueError("Cannot form a connection feeding into an input node!")

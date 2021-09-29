@@ -99,7 +99,7 @@ class Genome:
 
     # TESTED
     def mutate_change_threshold(self):
-        ''' Changes the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
+        ''' Changes on the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
         node_idx = np.random.randint(low=0, high=len(self.network.node_genes))
         self.network.node_genes[node_idx].bias = np.random.normal(scale=1)
 
@@ -132,7 +132,7 @@ class Genome:
             self.mutate_toggle_gene()
 
 
-# TODO: finish this
+# TESTED
 def crossover(first: Genome, second: Genome) -> Genome:
     ''' Returns the cross over between the genomes first and second '''
     # apply cross over to the connection genes, and then only retain the nodes used in those connections,
@@ -140,15 +140,18 @@ def crossover(first: Genome, second: Genome) -> Genome:
 
     # KEEP IN MIND THAT THESE ALSO HAVE TO BE ORDERED SUCCESSIVELY
     conn_genes = [] 
+    # maximum number of the index of a hidden node used in a connection, this is useful so only
+    # the nodes used in a connection are added (or those necessary to make the connection matrix work)
+    max_hidden_node_idx = -1
 
     fittest = first if first.fitness >= second.fitness else second
 
     f_min_conn_innov, f_max_conn_innov = first.network.get_weight_innov_interval()
     s_min_conn_innov, s_max_conn_innov = second.network.get_weight_innov_interval()
 
-    disjointed_innovs = [] # innovation numbers of the disjointed connection genes
-
-    for conn_innov in range(min(f_min_conn_innov, s_min_conn_innov), max(f_max_conn_innov, s_max_conn_innov)):
+    # the loop starts from the last connection so that the connection genes 
+    # are appended in an increasing order of ther innovation number
+    for conn_innov in range(min(f_min_conn_innov, s_min_conn_innov), max(f_max_conn_innov, s_max_conn_innov)+1):
         first_has_conn, second_has_conn = first.network.has_weight(conn_innov), second.network.has_weight(conn_innov)
 
         if first_has_conn and second_has_conn:
@@ -156,21 +159,43 @@ def crossover(first: Genome, second: Genome) -> Genome:
             base_network = first.network if np.random.uniform() <= 0.5 else second.network
             gene = base_network.get_conn_gene(conn_innov)
             conn_genes.append(gene)
+            if gene.end > max_hidden_node_idx:
+                max_hidden_node_idx = gene.end
         elif first_has_conn != second_has_conn: # one has to be true
             # an unmatching gene is always chosen from the fittest parent
-            disjointed_innovs.append(conn_innov)
+            gene = fittest.network.get_conn_gene(conn_innov)
+            if gene is not None:
+                conn_genes.append(gene)
+                if gene.end > max_hidden_node_idx:
+                    max_hidden_node_idx = gene.end
 
-    for disj_conn_innov in disjointed_innovs:
-        gene = fittest.network.get_conn_gene(disj_conn_innov)
-        if gene is not None:
-            conn_genes.append(gene)
 
-    
-    for conn_gene in conn_genes:
-        print(conn_gene)
-        print(f"\tWeight: {conn_gene.weight}", end='\n'*2)
-    
     # GENERATE THE NODES (ONLY KEEP THE ONES USED IN THE CONNECTIONS)
 
-    #num_in, num_out = first.network.num_in, first.network.num_out
-    #node_genes = [NodeGene(i, NodeType.OUTPUT) for i in range(num_out)]+[NodeGene(num_in+i, NodeType.INPUT) for i in range(num_in)]
+    num_in, num_out = first.network.num_in, first.network.num_out
+    node_genes = [NodeGene(i, NodeType.OUTPUT) for i in range(num_out)]+[NodeGene(num_out+i, NodeType.INPUT) for i in range(num_in)]
+    print(len(node_genes))
+    node_genes += [NodeGene(len(node_genes)+i, NodeType.HIDDEN) for i in range(max_hidden_node_idx-len(node_genes)+1)]
+
+    f_min_node_idx, f_max_node_idx = first.network.get_node_innov_interval()
+    s_min_node_idx, s_max_node_idx = second.network.get_node_innov_interval()
+
+    for node_idx in range(num_in+num_out, len(node_genes)):
+        first_has_node, second_has_node = first.network.has_node(node_idx), second.network.has_node(node_idx)
+        if first_has_node and second_has_node:
+            base_network = first.network if np.random.uniform() <= 0.5 else second.network
+            node_genes[node_idx].bias = base_network.node_genes[node_idx].bias
+        elif first_has_node != second_has_node:
+            try:
+                node_genes[node_idx].bias = fittest.network.node_genes[node_idx].bias
+            except IndexError:
+                base_network = first.network if fittest == second.network else second.network
+                node_genes[node_idx].bias = base_network.node_genes[node_idx].bias
+
+    print("Generated network's connection genes", end='\n'*2)
+    for conn_gene in conn_genes:
+        print(conn_gene)
+
+    print("\n"*4+"Generated network's node genes", end='\n'*2)
+    for node_gene in node_genes:
+        print(node_gene)

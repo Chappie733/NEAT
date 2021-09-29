@@ -110,17 +110,25 @@ elif sys.argv[1] == 'toggle_mutation_test':
     print(f"Weights: {gen.network.weights}")
 
 
-
 elif sys.argv[1] == 'crossover_test':
     A = Genome(3,1,ReLu)
-
+    A.network.gen_node()
     A.network.add_conn(ConnectionGene(1,0,1))
-    A.network.add_conn(ConnectionGene(3,0,2))
+    A.network.add_conn(ConnectionGene(1,4,2))
+    A.network.add_conn(ConnectionGene(2,4,3))
+    A.network.add_conn(ConnectionGene(3,0,4))
+    A.network.add_conn(ConnectionGene(4,0,5))
     A.fitness = 1
 
     B = Genome(3,1,ReLu)
-    
-    B.network.add_conn(ConnectionGene(2,0,3))
-    B.network.add_conn(ConnectionGene(3,0,2))
+    B.network.gen_node()
+    B.network.gen_node()
+    B.network.add_conn(ConnectionGene(1,0,1))
+    B.network.add_conn(ConnectionGene(2,4,3))
+    B.network.add_conn(ConnectionGene(3,0,4))
+    B.network.add_conn(ConnectionGene(1,5,6))
+    B.network.add_conn(ConnectionGene(3,4,7))
+    B.network.add_conn(ConnectionGene(4,5,8))
+    B.network.add_conn(ConnectionGene(5,0,9))
 
     crossover(A,B)
