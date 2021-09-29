@@ -33,7 +33,7 @@ class Genome:
         other_num_genes = len(other.network.conn_genes)+len(other.network.nodes)
         N = max(self_num_genes, other_num_genes)
 
-        return self.UNMATCHED_GENES_COEFFICIENT*unmatched_genes/N + self.WEIGHTS_DIFFERENCE_COEFFICIENT*diff
+        return self.UNMATCHED_GENES_COEFFICIENT*unmatched_genes/N + self.WEIGHTS_DIFFERENCE_COEFFICIENT*diff < self.COMPATIBILITY_THRESHOLD
 
     # TESTED
     def mutate_add_node(self) -> None:
