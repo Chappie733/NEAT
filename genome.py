@@ -1,4 +1,3 @@
-from math import e
 from network import *
 from gene import *
 from random import randint, choice
