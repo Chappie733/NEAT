@@ -131,4 +131,28 @@ elif sys.argv[1] == 'crossover_test':
     B.network.add_conn(ConnectionGene(4,5,8))
     B.network.add_conn(ConnectionGene(5,0,9))
 
-    crossover(A,B)
+    print("Crossover: ")
+    print(crossover(A,B).network)
+
+elif sys.argv[1] == 'structure_loading_test':
+    net = Network(3, 1, ReLu)
+    net.gen_node()
+
+    net.add_conn(ConnectionGene(1,4,1))
+    net.add_conn(ConnectionGene(2,4,2))
+    net.add_conn(ConnectionGene(4,0,3))
+    net.add_conn(ConnectionGene(3,0,4))
+    
+    print(net)
+    print("Original network's weights")
+    print(net.weights, end='\n'*2)
+
+    node_genes, conn_genes = net.get_structure()
+
+    del net
+
+    net = Network(3,1,ReLu)
+    net.load_structure(node_genes, conn_genes)
+    print(net)
+    print("Loaded network's weights")
+    print(net.weights, end='\n'*2)

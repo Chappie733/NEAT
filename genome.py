@@ -7,15 +7,21 @@ class Genome:
     UNMATCHED_GENES_COEFFICIENT = 0.5
     WEIGHTS_DIFFERENCE_COEFFICIENT = 0.5
 
-    def __init__(self, num_inputs, num_outputs, activation):
+    def __init__(self, num_inputs, num_outputs, activation, init_network=True):
         self.species = 0
         self.fitness = 0
-        self.network = Network(num_inputs, num_outputs, activation)
+        if init_network:
+            self.network = Network(num_inputs, num_outputs, activation)
+
+    @staticmethod
+    def create_from_network(network: Network):
+        genome = Genome(network.num_in, network.num_out, network.activation, init_network=False)
+        genome.network = network
+        return genome
 
     def are_same_species(self, other) -> bool:
         ''' 
-            Returns whether the genome belongs to the same species
-            as the other one or not
+            Returns whether the genome belongs to the same species as the other one or not
         '''
         unmatched_genes = self.network.get_num_unmatched_node_genes(other)+self.network.get_unmatched_conn_genes(other)
 
@@ -98,7 +104,7 @@ class Genome:
 
     # TESTED
     def mutate_change_threshold(self):
-        ''' Changes on the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
+        ''' Changes one of the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
         node_idx = np.random.randint(low=0, high=len(self.network.node_genes))
         self.network.node_genes[node_idx].bias = np.random.normal(scale=1)
 
@@ -134,10 +140,6 @@ class Genome:
 # TESTED
 def crossover(first: Genome, second: Genome) -> Genome:
     ''' Returns the cross over between the genomes first and second '''
-    # apply cross over to the connection genes, and then only retain the nodes used in those connections,
-    # this allows to avoid having unnecessaryy unused nodes.
-
-    # KEEP IN MIND THAT THESE ALSO HAVE TO BE ORDERED SUCCESSIVELY
     conn_genes = [] 
     # maximum number of the index of a hidden node used in a connection, this is useful so only
     # the nodes used in a connection are added (or those necessary to make the connection matrix work)
@@ -148,8 +150,8 @@ def crossover(first: Genome, second: Genome) -> Genome:
     f_min_conn_innov, f_max_conn_innov = first.network.get_weight_innov_interval()
     s_min_conn_innov, s_max_conn_innov = second.network.get_weight_innov_interval()
 
-    # the loop starts from the last connection so that the connection genes 
-    # are appended in an increasing order of ther innovation number
+    # Since the loop works on the innovation numbers in an increasing order, 
+    # they are already ordered when they are appended to conn_genes
     for conn_innov in range(min(f_min_conn_innov, s_min_conn_innov), max(f_max_conn_innov, s_max_conn_innov)+1):
         first_has_conn, second_has_conn = first.network.has_weight(conn_innov), second.network.has_weight(conn_innov)
 
@@ -170,10 +172,8 @@ def crossover(first: Genome, second: Genome) -> Genome:
 
 
     # GENERATE THE NODES (ONLY KEEP THE ONES USED IN THE CONNECTIONS)
-
     num_in, num_out = first.network.num_in, first.network.num_out
     node_genes = [NodeGene(i, NodeType.OUTPUT) for i in range(num_out)]+[NodeGene(num_out+i, NodeType.INPUT) for i in range(num_in)]
-    print(len(node_genes))
     node_genes += [NodeGene(len(node_genes)+i, NodeType.HIDDEN) for i in range(max_hidden_node_idx-len(node_genes)+1)]
 
     f_min_node_idx, f_max_node_idx = first.network.get_node_innov_interval()
@@ -191,10 +191,9 @@ def crossover(first: Genome, second: Genome) -> Genome:
                 base_network = first.network if fittest == second.network else second.network
                 node_genes[node_idx].bias = base_network.node_genes[node_idx].bias
 
-    print("Generated network's connection genes", end='\n'*2)
-    for conn_gene in conn_genes:
-        print(conn_gene)
+    # for now I'll just assume both genomes use the same activation function
+    net = Network(num_in, num_out, first.network.activation)
+    net.load_structure(node_genes, conn_genes)
 
-    print("\n"*4+"Generated network's node genes", end='\n'*2)
-    for node_gene in node_genes:
-        print(node_gene)
+    genome = Genome.create_from_network(net)
+    return genome

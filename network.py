@@ -2,6 +2,7 @@ import numpy as np
 from gene import *
 from activations import none
 from multipledispatch import dispatch
+from copy import deepcopy
 
 # Important shit
 # - np.c_[mat, arr] appends the array as a column in the end
@@ -47,15 +48,19 @@ class Network:
         return np.array([self._predict(x) for x in X], dtype=np.float32)
 
     # get the actual structure of the network
-    def get_structure(self) -> tuple:
-        return (self.node_genes, self.conn_genes)
+    def get_structure(self, make_copy=False) -> tuple:
+        '''
+            Returns a tuple where the first element is a list of all the node genes in the network, and the second element
+            is a list of all the connection genes in the network.\n
+            make_copy -> whether to return the very instances of the nodes in the list or a copy
+        '''
+        return (self.node_genes, self.conn_genes) if not make_copy else (deepcopy(self.node_genes), deepcopy(self.conn_genes))
 
     # The innovation number for the nodes and for the connections will remain separate
     def gen_node(self, init_bias=True) -> None:
         # add the weights feeding into the other hidden neurons and into the outputs stemming from the new hidden neuron
         self.weights = np.c_[self.weights, np.zeros(len(self.nodes)-self.num_in)]
         # add the weights feeding into the new node from all of the inputs and all of the other hidden neurons
-        # maybe I have to add +1 after self.num_out
         self.weights = np.vstack([self.weights, np.zeros(len(self.nodes)-self.num_out+1)])
         self.node_genes.append(NodeGene(len(self.node_genes), NodeType.HIDDEN))
         if init_bias:
@@ -297,3 +302,24 @@ class Network:
         for conn_gene in self.conn_genes:
             string += f"\t\tConnection {conn_gene.start} -> {conn_gene.end}, enabled: {conn_gene.enabled}\n"
         return string
+
+    def load_structure(self, node_genes, conn_genes) -> None:
+        '''
+            Integrates the network structure represented by the lists of the node and connection genes
+            into the instance of the network, applying all the values for the weights and for the thresholds.
+        '''
+        self.node_genes = node_genes
+        self.conn_genes = conn_genes
+
+        amount_hidden = len(node_genes)-self.num_in-self.num_out # number of hidden neurons
+        self.weights = np.zeros((self.num_out, self.num_in))
+        # GENERATE THE WEIGHTS FOR THE HIDDEN NODES
+        for i in range(amount_hidden):
+            self.weights = np.c_[self.weights, np.zeros(self.weights.shape[0])]
+            self.weights = np.vstack([self.weights, np.zeros(self.weights.shape[1])])
+
+        # update the values of the weight matrix
+        for conn_idx in range(len(conn_genes)):
+            self.set_weight(conn_idx, conn_genes[conn_idx].weight)
+
+        self.nodes = np.zeros(len(node_genes))
