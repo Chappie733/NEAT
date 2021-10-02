@@ -1,0 +1,17 @@
+population: 150
+generations: 50
+activation: tanh
+num_inputs: 3
+num_outputs: 1
+prob_add_node: 0.3
+prob_add_conn: 0.4
+prob_change_weight: 0.5
+prob_change_threshold: 0.5
+prob_toggle_gene: 0.2
+compatibility_threshold: 3
+unmatched_genes_coeff: 0.5
+weight_diff_coeff: 0.5
+weight_init_variance: 1
+threshold_init_variance: 1
+crossover_rate: 0.2
+top_genomes_rate: 0.2
