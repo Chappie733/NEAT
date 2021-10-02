@@ -14,7 +14,8 @@ class Neat:
     def __init__(self, config_file: str):
         self.load_configs(config_file)
         self.genomes = []
-        # a list of all the connection genes, these are the standards so that if a gene
+        # a list of all the connection genes, each represented as a tuple:
+        # (start_idx, end_idx, innovation_number); these are the standards so that if a gene
         # points from a -> b it always has the same innovation number
         self.global_conn_genes = []
 
@@ -78,6 +79,27 @@ class Neat:
                 # APPLY MUTATIONS 
                 # remove the worst performing genome in the species, this won't be mutated and passed to the next gen.
                 species[species_idx] = species[species_idx][1:] 
+                for _ in range(new_species_size-crossover_generated_num):
+                    genome = np.random.choice(species[species_idx])
+                    new_conns = genome.mutate(self.configs)
+                    # lookup innovation numbers and shit
+                    for conn in new_conns:
+                        found = False
+                        for global_conn in self.global_conn_genes: # look to see if the connection has already been created
+                            if conn == global_conn[:2]:
+                                found = True # if so log it to avoid saving it again
+                                conn_gene_idx = genome.network.get_conn_idx(conn[0], conn[1]) # the index of the new connection gene in the network
+                                genome.network.conn_genes[conn_gene_idx].innov = global_conn[2] # and apply the right innovation number
+                        if not found: # if the connection gene is brand new
+                            # save the connection in the "global index" and assign it a new (increasing) innovation number
+                            self.global_conn_genes.append((conn[0], conn[1], len(self.global_conn_genes)))
+                            # update the innovation number of the actual gene
+                            conn_gene_idx = genome.network.get_conn_idx(conn[0], conn[1])
+                            genome.network.conn_genes[conn_gene_idx].innov = self.global_conn_genes[-1][2]
+                    new_pop.append(genome)
+
+
+                # PRINT STATISTICS I GUESS...
 
     def run_generation(self):
         self.initialize_pop()

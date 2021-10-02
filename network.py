@@ -81,13 +81,12 @@ class Network:
         self.node_genes.append(node)
         self.nodes = np.append(self.nodes, 0)
 
-    def add_conn(self, gene: ConnectionGene) -> None:
+    def add_conn(self, gene: ConnectionGene) -> int:
+        '''
+            The function applies the connection gene passed as its argument to the network
+        '''
         # In the end I decided to allow connections from a higher index to a lower one, but other parts
         # of the code (such as in the random mutation part) make checks to avoid them.
-        '''
-        if gene.end < gene.start and self.node_genes[gene.end]._type == NodeType.HIDDEN:
-            raise ValueError("A connection cannot stem from a node with a higher index than the one it points to!")
-        '''
         # I wanna be clear with error messages
         if gene.end == gene.start:
             raise ValueError("A connection should not stem from a node and point to itself!")
@@ -282,6 +281,17 @@ class Network:
             if self.has_weight(conn_innov) != other.has_weight(conn_innov):
                 unmatched += 1
         return unmatched
+
+    def get_conn_idx(self, start_idx: int, end_idx: int) -> int:
+        '''
+            Returns the index in this network's connection gene list of the gene with the
+            given starting and ending nodes, if the gene isn't present, the function returns
+            -1
+        '''
+        for conn_gene_idx in range(len(self.conn_genes)):
+            if self.conn_genes[conn_gene_idx].start == start_idx and self.conn_genes[conn_gene_idx].end == end_idx:
+                return conn_gene_idx
+        return -1
 
     # TESTED
     def get_conn_gene(self, conn_innov: int) -> ConnectionGene:

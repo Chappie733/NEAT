@@ -3,9 +3,6 @@ from gene import *
 from random import randint, choice
 
 class Genome:
-    COMPATIBILITY_THRESHOLD = 3.0  
-    UNMATCHED_GENES_COEFFICIENT = 0.5
-    WEIGHTS_DIFFERENCE_COEFFICIENT = 0.5
 
     def __init__(self, num_inputs, num_outputs, activation, init_network=True):
         self.species = 0
@@ -19,7 +16,7 @@ class Genome:
         genome.network = network
         return genome
 
-    def are_same_species(self, other) -> bool:
+    def are_same_species(self, other, configs=None) -> bool:
         ''' 
             Returns whether the genome belongs to the same species as the other one or not
         '''
@@ -38,10 +35,10 @@ class Genome:
         other_num_genes = len(other.network.conn_genes)+len(other.network.nodes)
         N = max(self_num_genes, other_num_genes)
 
-        return self.UNMATCHED_GENES_COEFFICIENT*unmatched_genes/N + self.WEIGHTS_DIFFERENCE_COEFFICIENT*diff < self.COMPATIBILITY_THRESHOLD
+        return configs['unmatched_genes_coeff']*unmatched_genes/N + configs['weight_diff_coeff']*diff < configs['compatibility_threshold']
 
     # TESTED
-    def mutate_add_node(self) -> None:
+    def mutate_add_node(self) -> tuple:
         '''
             Selects a random connection in the network between the nodes a->b, it disables it
             and it generates a new node c, then it forms the connections a->c and c->b.
@@ -50,17 +47,20 @@ class Genome:
         # If there are no connection there's no point in trying to form a node to substitute one,
         # it would just crash the whole program
         if len(self.network.conn_genes) == 0:
-            return
+            return None
         
         conn_idx = np.random.randint(low=0, high=len(self.network.conn_genes)) # pick the connection in which to form the new node
         self.network.disable_conn(conn_idx)
         self.network.gen_node()
         new_node_idx = self.network.node_genes[-1].index
-        self.network.add_conn(ConnectionGene(self.network.conn_genes[conn_idx].start, new_node_idx, 1))
-        self.network.add_conn(ConnectionGene(new_node_idx, self.network.conn_genes[conn_idx].end, 1))
+        first_conn = ConnectionGene(self.network.conn_genes[conn_idx].start, new_node_idx, 1)
+        self.network.add_conn(first_conn)
+        second_conn = ConnectionGene(new_node_idx, self.network.conn_genes[conn_idx].end, 1)
+        self.network.add_conn(second_conn)
+        return ((first_conn.start, first_conn.end), (second_conn.start, second_conn.end))
 
     # TESTED
-    def mutate_add_conn(self, max_attemps=10) -> bool:
+    def mutate_add_conn(self, max_attemps=10) -> tuple:
         '''
             Adds a new random connection gene in the genome (and thus in the network)\n
             max_attempts is the number of attempts made to generate a unique connection, meaning it
@@ -90,11 +90,11 @@ class Genome:
             attempts += 1  
 
         if not valid:
-            return False
+            return False, (-1,-1)
 
         conn_gene = ConnectionGene(start_idx, end_idx, 1)
         self.network.add_conn(conn_gene)
-        return True
+        return True, (start_idx, end_idx)
 
     # TESTED
     def mutate_change_weight(self):
@@ -117,24 +117,37 @@ class Genome:
         else:
             self.network.enable_conn(conn_gene_idx)
 
-    def mutate(self, node_add_prob=0.3, conn_add_prob=0.3, weight_change_prob=0.6, threshold_change_prob=0.5, gene_toggle_prob=0.1):
+    def mutate(self, configs) -> tuple:
         '''
-            Mutates the genome according to the given parameters
-            node_add_prob -> probability of adding a new node between a connection\n
-            conn_add_prob -> probability of adding a new connection between two nodes\n
-            weight_change_prob -> probability that every single weight in the network is changed randomly\n
-            gene_toggle_prob -> probability that a gene is toggled (meaning it gets enabled or disabled)
+            Mutates the genome according to the given parameters \n
+            configs -> a dictionary with all the following keys (going from 0 to 1):\n
+                \tprob_add_node -> probability of adding a new node between a connection\n
+                \tadd_conn_prob -> probability of adding a new connection between two nodes\n
+                \tchange_weight_prob -> probability that every single weight in the network is changed randomly\n
+                \tthreshold_change_prob -> probability that the threshold of a random neuron in the network is changed randomly\n
+                \ttoggle_gene_prob -> probability that a gene is toggled (meaning it gets enabled or disabled)
         '''
-        if np.random.uniform() <= node_add_prob:
-            self.mutate_add_node()
-        if np.random.uniform() <= conn_add_prob:
-            self.mutate_add_conn()
-        if np.random.uniform() <= weight_change_prob:
+        # list of the new connections formed during this mutation, each represented as a tuple as such:
+        # (conn_start, conn_end, conn_idx), where conn_idx is the index of the connection in the network of this genome
+        conns = []
+
+        if np.random.uniform() <= configs['prob_add_node']:
+            generated = self.mutate_add_node()
+            if generated is not None:
+                for conn in generated:
+                    conns.append(conn)
+        if np.random.uniform() <= configs['add_conn_prob']:
+            res = self.mutate_add_conn()
+            if res[0]: # only keep track of it if a new connection was actually found
+                conns.append(res[1])
+        if np.random.uniform() <= configs['change_weight_prob']:
             self.mutate_change_weight()
-        if np.random.uniform() <= threshold_change_prob:
+        if np.random.uniform() <= configs['threshold_change_prob']:
             self.mutate_change_threshold()
-        if np.random.uniform() <= gene_toggle_prob:
+        if np.random.uniform() <= configs['toggle_gene_prob']:
             self.mutate_toggle_gene()
+
+        return conns
 
 
 # TESTED
