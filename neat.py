@@ -1,6 +1,7 @@
 from genome import *
 from network import *
 from gene import *
+from math import ceil
 
 def convert(x: str):
     ''' Converts x in a number (if possible) '''
@@ -25,8 +26,8 @@ class Neat:
             lines = f.readlines()
         configs = {}
         for line in lines:
-            idx = line.index(":")+1
-            configs[line[:idx]] = convert(line[idx:].replace(' ', '').replace('\n',''))
+            idx = line.index(":")
+            configs[line[:idx]] = convert(line[idx+1:].replace(' ', '').replace('\n',''))
         
         self.configs = configs
 
@@ -36,7 +37,8 @@ class Neat:
         '''
         # generate a new population
         if len(self.genomes) == 0:
-            self.genomes = [Genome(self.configs['num_inputs'], self.configs['num_outputs'], self.configs['activation'])]
+            pop = int(self.configs['population'])
+            self.genomes = [Genome(int(self.configs['num_inputs']), int(self.configs['num_outputs']), self.configs['activation']) for _ in range(pop)]
         else:
             species = {}  # map:  species idx ->  list of genomes in that species
             species_tot_fitness = {}  # map:   species idx -> total fitness of that species (sum of all their fitnesses)
@@ -54,7 +56,7 @@ class Neat:
                 pop_avg_adj_fitness += species_tot_fitness[species_idx]/len(species[species_idx])
             
             pop_avg_adj_fitness /= self.configs['population'] # divide it by the population again to get the true result
-
+            
             # order each list of the genomes of a species in an increasing order of their fitness
             new_pop = [] # the new population, which is going to be passed to the next generation 
             for species_idx in species:
@@ -66,20 +68,23 @@ class Neat:
 
                 # APPLY CROSSOVER
                 # number of genomes to be generated with crossovers
-                crossover_generated_num = int(self.configs['crossover_rate']*new_species_size)
+                crossover_generated_num = ceil(self.configs['crossover_rate']*new_species_size)
                 # number of the top genomes to use in crossovers
                 crossover_genome_pool_size = int(self.configs['top_genomes_rate']*len(species[species_idx]))
                 genome_pool = species[species_idx][-crossover_genome_pool_size:] # actual genomes to be used in the crossover
-                for _ in range(crossover_generated_num):
-                    f, s = None, None
-                    while f == s: # make sure there's no crossing over between a genome and itself
-                        f, s = np.random.choice(genome_pool), np.random.choice(genome_pool)
-                    new_pop.append(crossover(f, s))
+                if len(genome_pool) > 1:
+                    for _ in range(crossover_generated_num):
+                        f, s = None, None
+                        while f == s: # make sure there's no crossing over between a genome and itself
+                            f, s = np.random.choice(genome_pool), np.random.choice(genome_pool)
+                        new_pop.append(crossover(f, s))
                 
+
                 # APPLY MUTATIONS 
                 # remove the worst performing genome in the species, this won't be mutated and passed to the next gen.
-                species[species_idx] = species[species_idx][1:] 
-                for _ in range(new_species_size-crossover_generated_num):
+                if len(species[species_idx]) > 1:
+                    species[species_idx] = species[species_idx][1:] 
+                for _ in range(int(new_species_size)-crossover_generated_num):
                     genome = np.random.choice(species[species_idx])
                     new_conns = genome.mutate(self.configs)
                     # lookup innovation numbers and shit
@@ -98,8 +103,22 @@ class Neat:
                             genome.network.conn_genes[conn_gene_idx].innov = self.global_conn_genes[-1][2]
                     new_pop.append(genome)
 
-
-                # PRINT STATISTICS I GUESS...
+            # ASSIGN A SPECIES TO EACH GENOME
+            # reference genomes for each species, the genome in the i-th index is the one representing the i-th species
+            ref_genomes = [np.random.choice(species[species_idx]) for species_idx in species]
+            for genome in new_pop:
+                found = False
+                for ref_genome_idx in range(len(ref_genomes)):
+                    if genome.are_same_species(ref_genomes[ref_genome_idx], configs=self.configs):
+                        genome.species = ref_genome_idx
+                        found = True
+                        break
+                if not found:
+                    genome.species = len(ref_genomes)
+            
+            for species_idx in species_tot_fitness:
+                print(f"Species #{species_idx}: \n\tgenomes: {len(species[species_idx])}")
+                print(f"\n\taverage fitness: {species_tot_fitness[species_idx]/len(species[species_idx])}")
 
     def run_generation(self):
         self.initialize_pop()
@@ -107,10 +126,15 @@ class Neat:
 
     # main part of the process
     def run(self):
-        for _ in range(1, self.configs['generations']+1):
+        for gen in range(1, int(self.configs['generations']+1)):
+            print("-"*20 + f"Generation #{gen}" + "-"*20)
             self.run_generation()
+
+def eval_fitness(genomes):
+    for genome in genomes:
+        genome.fitness = randint(1,100)
 
 if __name__ == '__main__':
     neat = Neat("configs.txt")
-    for key in neat.configs:
-        print(f"{key} -> {neat.configs[key]}")
+    neat.eval_fitness = eval_fitness
+    neat.run()

@@ -1,6 +1,6 @@
 import numpy as np
 from gene import *
-from activations import none
+from activations import ACTIVATIONS, none
 from multipledispatch import dispatch
 from copy import deepcopy
 
@@ -14,7 +14,9 @@ class Network:
     ''' Class representing a neural network without layers and with a customizable structure '''
 
     # initializes the most basic structure with no connections
-    def __init__(self, num_inputs, num_outputs, activation=none):
+    def __init__(self, num_inputs, num_outputs, activation='none'):
+        global ACTIVATIONS
+
         self.num_in, self.num_out = num_inputs, num_outputs
         self.nodes = np.zeros(num_inputs+num_outputs)
         # i-th index -> vector of weights feeding into node i-n (n is the number of input nodes) (they have to be dense I guess)
@@ -22,7 +24,10 @@ class Network:
         self.weights = np.zeros((num_outputs, num_inputs))
         self.node_genes = [NodeGene(i, NodeType.OUTPUT) for i in range(num_outputs)]+[NodeGene(num_outputs+i, NodeType.INPUT) for i in range(num_inputs)]
         self.conn_genes = []
-        self.activation = activation
+        if isinstance(activation, str):
+            self.activation = ACTIVATIONS[activation]
+        else:
+            self.activation = activation
 
     def _predict(self, x) -> np.ndarray:
         if not isinstance(x, np.ndarray) and not isinstance(x, list):
@@ -321,7 +326,7 @@ class Network:
         self.node_genes = node_genes
         self.conn_genes = conn_genes
 
-        amount_hidden = len(node_genes)-self.num_in-self.num_out # number of hidden neurons
+        amount_hidden = len(node_genes)-self.num_in-self.num_out+1 # number of hidden neurons
         self.weights = np.zeros((self.num_out, self.num_in))
         # GENERATE THE WEIGHTS FOR THE HIDDEN NODES
         for i in range(amount_hidden):

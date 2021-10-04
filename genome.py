@@ -20,7 +20,7 @@ class Genome:
         ''' 
             Returns whether the genome belongs to the same species as the other one or not
         '''
-        unmatched_genes = self.network.get_num_unmatched_node_genes(other)+self.network.get_unmatched_conn_genes(other)
+        unmatched_genes = self.network.get_num_unmatched_node_genes(other.network)
 
         # diff -> average difference between two weights of the same connection present in both networks
         # n -> number of shared connection genes
@@ -30,7 +30,10 @@ class Genome:
                 if conn_gene.innov == other_gene.innov:
                     n += 1
                     diff += self.network.get_weight(conn_gene) - other.network.get_weight(other_gene)
-        diff /= n
+        try:
+            diff /= n
+        except ZeroDivisionError:
+            pass
         self_num_genes = len(self.network.conn_genes)+len(self.network.nodes)
         other_num_genes = len(other.network.conn_genes)+len(other.network.nodes)
         N = max(self_num_genes, other_num_genes)
@@ -50,12 +53,13 @@ class Genome:
             return None
         
         conn_idx = np.random.randint(low=0, high=len(self.network.conn_genes)) # pick the connection in which to form the new node
+        conn = self.network.conn_genes[conn_idx]
         self.network.disable_conn(conn_idx)
         self.network.gen_node()
         new_node_idx = self.network.node_genes[-1].index
-        first_conn = ConnectionGene(self.network.conn_genes[conn_idx].start, new_node_idx, 1)
+        first_conn = ConnectionGene(conn.start, new_node_idx, 1)
         self.network.add_conn(first_conn)
-        second_conn = ConnectionGene(new_node_idx, self.network.conn_genes[conn_idx].end, 1)
+        second_conn = ConnectionGene(new_node_idx, conn.end, 1)
         self.network.add_conn(second_conn)
         return ((first_conn.start, first_conn.end), (second_conn.start, second_conn.end))
 
@@ -99,6 +103,9 @@ class Genome:
     # TESTED
     def mutate_change_weight(self):
         ''' Changes one of the weights of the network randomly (according to a gaussian distribution) '''
+        if len(self.network.conn_genes) == 0:
+            return
+
         conn_idx = np.random.randint(low=0, high=len(self.network.conn_genes)) # pick a random connection to change
         self.network.set_weight(conn_idx, np.random.normal(scale=1))
 
@@ -111,6 +118,9 @@ class Genome:
     # TESTED
     def mutate_toggle_gene(self):
         ''' Toggles a random connection gene, meaning if it's enabled it gets disabled and viceversa '''
+        if len(self.network.conn_genes) == 0:
+            return
+
         conn_gene_idx = np.random.randint(low=0, high=len(self.network.conn_genes))
         if self.network.conn_genes[conn_gene_idx].enabled:
             self.network.disable_conn(conn_gene_idx)
