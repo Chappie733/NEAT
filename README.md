@@ -9,6 +9,6 @@ Progress:
 - [x] Implement the ability to perform a crossover between two genomes.
 - [x] Write the code for speciation and to calculate their adjusted fitnesses and size at each generation
 - [x] Load the configurations needed from a file, whilst still allowing their customization.
-- [ ] Make a system that keeps track of every connection gene's innovation number when dealing with mutations.
-- [ ] Finish the process involved in creating a new generation from the current one.
-- [ ] Add statistics reported and nice printing for the process
+- [x] Make a system that keeps track of every connection gene's innovation number when dealing with mutations.
+- [x] Finish the process involved in creating a new generation from the current one.
+- [ ] Add statistics reporters and nice printing for the process
