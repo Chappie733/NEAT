@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.index_tricks import IndexExpression
 from gene import *
 from activations import ACTIVATIONS, none
 from multipledispatch import dispatch
@@ -120,7 +121,10 @@ class Network:
             Returns the actual value of the weight represented by the given connection gene
         '''
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
-        return self.weights[mat_end_node][gene.start-self.num_out]
+        try:
+            return self.weights[mat_end_node][gene.start-self.num_out]
+        except IndexError:
+            return 0
 
     @dispatch(ConnectionGene, float)
     def set_weight(self, gene: ConnectionGene, val: float) -> None:
@@ -132,7 +136,10 @@ class Network:
             if conn_gene.start == gene.start and conn_gene.end == conn_gene.end:
                 conn_gene.weight = val
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
-        self.weights[mat_end_node][gene.start-self.num_out] = val
+        try:
+            self.weights[mat_end_node][gene.start-self.num_out] = val
+        except IndexError:
+            pass
 
     @dispatch(int)
     def get_weight(self, conn_gene_idx: int) -> float:
@@ -141,8 +148,11 @@ class Network:
         '''
         gene = self.conn_genes[conn_gene_idx]
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
-        return self.weights[mat_end_node][gene.start-self.num_out]
-    
+        try:
+            return self.weights[mat_end_node][gene.start-self.num_out]
+        except IndexError:
+            return 0
+
     @dispatch(int, float)
     def set_weight(self, conn_gene_idx: int, val: float) -> None:
         '''
@@ -151,7 +161,10 @@ class Network:
         self.conn_genes[conn_gene_idx].weight = val
         gene = self.conn_genes[conn_gene_idx]
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
-        self.weights[mat_end_node][gene.start-self.num_out] = val
+        try:
+            self.weights[mat_end_node][gene.start-self.num_out] = val
+        except IndexError:
+            return
 
     @dispatch(int)
     def disable_conn(self, conn_idx: int) -> None:

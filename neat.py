@@ -31,7 +31,7 @@ class Neat:
         
         self.configs = configs
 
-    def initialize_pop(self):
+    def initialize_pop(self, verbosity=1):
         ''' 
             Initializes the population based on the given settings (or on the previous genomes)
         '''
@@ -116,25 +116,35 @@ class Neat:
                 if not found:
                     genome.species = len(ref_genomes)
             
-            for species_idx in species_tot_fitness:
-                print(f"Species #{species_idx}: \n\tgenomes: {len(species[species_idx])}")
-                print(f"\n\taverage fitness: {species_tot_fitness[species_idx]/len(species[species_idx])}")
+            if verbosity >= 2:
+                for species_idx in species_tot_fitness:
+                    print(f"Species #{species_idx}: \n\tgenomes: {len(species[species_idx])}")
+                    print(f"\n\taverage fitness: {species_tot_fitness[species_idx]/len(species[species_idx])}")
+            elif verbosity >= 1:
+                print(f"Average fitness: {pop_avg_adj_fitness}")
 
-    def run_generation(self):
-        self.initialize_pop()
+    def run_generation(self, verbosity=2):
+        self.initialize_pop(verbosity=verbosity)
         self.eval_fitness(self.genomes)
 
     # main part of the process
-    def run(self):
+    def run(self, verbosity=2):
         for gen in range(1, int(self.configs['generations']+1)):
             print("-"*20 + f"Generation #{gen}" + "-"*20)
-            self.run_generation()
+            self.run_generation(verbosity=verbosity)
 
 def eval_fitness(genomes):
+    x = np.array([1,2,3])
     for genome in genomes:
-        genome.fitness = randint(1,100)
+        genome.fitness = int(genome.network._predict(x)+1)
 
 if __name__ == '__main__':
     neat = Neat("configs.txt")
     neat.eval_fitness = eval_fitness
-    neat.run()
+    neat.run(verbosity=0)
+    best_genome = neat.genomes[0]
+    for genome in neat.genomes:
+        if genome.fitness > best_genome.fitness:
+            best_genome = genome
+    print(f"Final prediction {best_genome.network._predict(np.array([1,2,3]))}")
+    
