@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.lib.index_tricks import IndexExpression
 from gene import *
 from activations import ACTIVATIONS, none
 from multipledispatch import dispatch
@@ -31,6 +30,9 @@ class Network:
             self.activation = activation
 
     def _predict(self, x) -> np.ndarray:
+        '''
+            Returns the values the network predicts when the input x is fed into the network.
+        '''
         if not isinstance(x, np.ndarray) and not isinstance(x, list):
             raise TypeError(f"Expected a numpy array or a python list but received an object of type {type(x)}")
         elif len(x) != self.num_in:
@@ -63,21 +65,31 @@ class Network:
         return (self.node_genes, self.conn_genes) if not make_copy else (deepcopy(self.node_genes), deepcopy(self.conn_genes))
 
     # The innovation number for the nodes and for the connections will remain separate
-    def gen_node(self, init_bias=True) -> None:
+    def gen_node(self, init_bias=True, bias_std=1.0) -> None:
+        '''
+            Generates a new node and sets its threshold according to a normal distribution with standard deviation bias_std
+        '''
         # add the weights feeding into the other hidden neurons and into the outputs stemming from the new hidden neuron
         self.weights = np.c_[self.weights, np.zeros(len(self.nodes)-self.num_in)]
         # add the weights feeding into the new node from all of the inputs and all of the other hidden neurons
         self.weights = np.vstack([self.weights, np.zeros(len(self.nodes)-self.num_out+1)])
         self.node_genes.append(NodeGene(len(self.node_genes), NodeType.HIDDEN))
         if init_bias:
-            self.node_genes[-1].bias = np.random.normal(scale=1)
+            self.node_genes[-1].bias = np.random.normal(scale=bias_std)
         self.nodes = np.append(self.nodes, 0)
 
     def gen_nodes(self, num_nodes=2, init_bias=True) -> None:
+        '''
+            Generates a certain new number of nodes:\nnum_nodes -> the number of nodes generated\n
+            init_bias -> whether the bias of the new nodes is initialized (if it isn't its default value is 0)
+        '''
         for _ in range(num_nodes):
             self.gen_node(init_bias=init_bias)
 
     def add_node(self, node: NodeGene) -> None:
+        '''
+            Adds the node represented by the given gene to the network
+        '''
         # can't add an input or output node
         if node._type != NodeType.HIDDEN:
             raise TypeError("Cannot add an input or output node to an already initialized network")
@@ -87,9 +99,11 @@ class Network:
         self.node_genes.append(node)
         self.nodes = np.append(self.nodes, 0)
 
-    def add_conn(self, gene: ConnectionGene) -> int:
+    def add_conn(self, gene: ConnectionGene, weight_std=1.0) -> int:
         '''
-            The function applies the connection gene passed as its argument to the network
+            The function applies the connection gene passed as its argument to the network, if the value for the
+            weight isn't already set in the gene object, it's initialized randomly according to a normal
+            distribution with standard deviation weight_std
         '''
         # In the end I decided to allow connections from a higher index to a lower one, but other parts
         # of the code (such as in the random mutation part) make checks to avoid them.
@@ -110,7 +124,7 @@ class Network:
 
         # if the weight is 0 there is no connection, wouldn't make sense to add this node, I'll
         # just assume that the node wasn't set manually and should therefore be initialized randomly    
-        gene.weight = 0 if gene.weight != 0 else np.random.normal(scale=1)
+        gene.weight = 0 if gene.weight != 0 else np.random.normal(scale = weight_std)
         self.conn_genes.insert(idx+1, gene)
         end_node_mat_idx = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
         self.weights[end_node_mat_idx][gene.start-self.num_out] = gene.weight
@@ -125,7 +139,7 @@ class Network:
             return self.weights[mat_end_node][gene.start-self.num_out]
         except IndexError:
             return 0
-
+        
     @dispatch(ConnectionGene, float)
     def set_weight(self, gene: ConnectionGene, val: float) -> None:
         '''
@@ -136,35 +150,29 @@ class Network:
             if conn_gene.start == gene.start and conn_gene.end == conn_gene.end:
                 conn_gene.weight = val
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
-        try:
-            self.weights[mat_end_node][gene.start-self.num_out] = val
-        except IndexError:
-            pass
-
+        self.weights[mat_end_node][gene.start-self.num_out] = val
+            
     @dispatch(int)
     def get_weight(self, conn_gene_idx: int) -> float:
         '''
             Returns the actual value of the weight represented by the connection gene at index conn_gene_idx
         '''
-        gene = self.conn_genes[conn_gene_idx]
-        mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
-        try:
-            return self.weights[mat_end_node][gene.start-self.num_out]
-        except IndexError:
-            return 0
+        return self.conn_genes[conn_gene_idx].weight
 
     @dispatch(int, float)
     def set_weight(self, conn_gene_idx: int, val: float) -> None:
         '''
             Sets the value of the weight represented by the connection gene at index conn_gene_idx
         '''
-        self.conn_genes[conn_gene_idx].weight = val
         gene = self.conn_genes[conn_gene_idx]
         mat_end_node = gene.end if self.node_genes[gene.end]._type == NodeType.OUTPUT else gene.end-self.num_in
+        # Sometimes this throws an error, I'm not actually sure why, but It happens rarely enough that It doesn't
+        # really affect the process as a whole (once every 30 gens with 50 pop), I might look into it at some point
         try:
             self.weights[mat_end_node][gene.start-self.num_out] = val
+            self.conn_genes[conn_gene_idx].weight = val
         except IndexError:
-            return
+            pass
 
     @dispatch(int)
     def disable_conn(self, conn_idx: int) -> None:
@@ -272,6 +280,9 @@ class Network:
         return False
 
     def get_num_unmatched_node_genes(self, other) -> int:
+        '''
+            Returns the number of unmatched node genes with the Network instance other
+        '''
         unmatched = 0
         
         s_min, s_max = self.get_node_innov_interval()
@@ -284,12 +295,19 @@ class Network:
         return unmatched
 
     def has_conn(self, start: int, end: int) -> bool:
+        '''
+            Returns whether the network has a connection (regardless of whether it's disabled or not)
+            between the node with the index start and the node with the index end
+        '''
         for conn_gene in self.conn_genes:
             if conn_gene.start == start and conn_gene.end == end:
                 return True
         return False
 
     def get_unmatched_conn_genes(self, other) -> int:
+        '''
+            Returns the number of unmatched conn genes with the Network instance other
+        '''
         unmatched = 0        
 
         s_min, s_max = self.get_weight_innov_interval()

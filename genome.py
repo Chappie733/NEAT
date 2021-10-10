@@ -12,6 +12,9 @@ class Genome:
 
     @staticmethod
     def create_from_network(network: Network):
+        '''
+            Create an instance of a genome from the given network
+        '''
         genome = Genome(network.num_in, network.num_out, network.activation, init_network=False)
         genome.network = network
         return genome
@@ -41,7 +44,7 @@ class Genome:
         return configs['unmatched_genes_coeff']*unmatched_genes/N + configs['weight_diff_coeff']*diff < configs['compatibility_threshold']
 
     # TESTED
-    def mutate_add_node(self) -> tuple:
+    def mutate_add_node(self, configs) -> tuple:
         '''
             Selects a random connection in the network between the nodes a->b, it disables it
             and it generates a new node c, then it forms the connections a->c and c->b.
@@ -58,13 +61,13 @@ class Genome:
         self.network.gen_node()
         new_node_idx = self.network.node_genes[-1].index
         first_conn = ConnectionGene(conn.start, new_node_idx, 1)
-        self.network.add_conn(first_conn)
+        self.network.add_conn(first_conn, weight_var = configs['weight_init_std'])
         second_conn = ConnectionGene(new_node_idx, conn.end, 1)
-        self.network.add_conn(second_conn)
+        self.network.add_conn(second_conn, weight_var = configs['weight_init_std'])
         return ((first_conn.start, first_conn.end), (second_conn.start, second_conn.end))
 
     # TESTED
-    def mutate_add_conn(self, max_attemps=10) -> tuple:
+    def mutate_add_conn(self, configs, max_attemps=10) -> tuple:
         '''
             Adds a new random connection gene in the genome (and thus in the network)\n
             max_attempts is the number of attempts made to generate a unique connection, meaning it
@@ -97,23 +100,23 @@ class Genome:
             return False, (-1,-1)
 
         conn_gene = ConnectionGene(start_idx, end_idx, 1)
-        self.network.add_conn(conn_gene)
+        self.network.add_conn(conn_gene, weight_var = configs['weight_init_std'])
         return True, (start_idx, end_idx)
 
     # TESTED
-    def mutate_change_weight(self):
+    def mutate_change_weight(self, configs):
         ''' Changes one of the weights of the network randomly (according to a gaussian distribution) '''
         if len(self.network.conn_genes) == 0:
             return
 
         conn_idx = np.random.randint(low=0, high=len(self.network.conn_genes)) # pick a random connection to change
-        self.network.set_weight(conn_idx, np.random.normal(scale=1))
+        self.network.set_weight(conn_idx, np.random.normal(scale=configs['weight_init_std']))
 
     # TESTED
-    def mutate_change_threshold(self):
+    def mutate_change_threshold(self, configs):
         ''' Changes one of the thresholds of the nodes in the network randomly (according to a gaussian distribution) '''
         node_idx = np.random.randint(low=0, high=len(self.network.node_genes))
-        self.network.node_genes[node_idx].bias = np.random.normal(scale=1)
+        self.network.node_genes[node_idx].bias = np.random.normal(scale=configs['threshold_init_std'])
 
     # TESTED
     def mutate_toggle_gene(self):
@@ -147,13 +150,13 @@ class Genome:
                 for conn in generated:
                     conns.append(conn)
         if np.random.uniform() <= configs['add_conn_prob']:
-            res = self.mutate_add_conn()
+            res = self.mutate_add_conn(configs)
             if res[0]: # only keep track of it if a new connection was actually found
                 conns.append(res[1])
         if np.random.uniform() <= configs['change_weight_prob']:
-            self.mutate_change_weight()
+            self.mutate_change_weight(configs)
         if np.random.uniform() <= configs['threshold_change_prob']:
-            self.mutate_change_threshold()
+            self.mutate_change_threshold(configs)
         if np.random.uniform() <= configs['toggle_gene_prob']:
             self.mutate_toggle_gene()
 
@@ -198,9 +201,6 @@ def crossover(first: Genome, second: Genome) -> Genome:
     num_in, num_out = first.network.num_in, first.network.num_out
     node_genes = [NodeGene(i, NodeType.OUTPUT) for i in range(num_out)]+[NodeGene(num_out+i, NodeType.INPUT) for i in range(num_in)]
     node_genes += [NodeGene(len(node_genes)+i, NodeType.HIDDEN) for i in range(max_hidden_node_idx-len(node_genes)+1)]
-
-    f_min_node_idx, f_max_node_idx = first.network.get_node_innov_interval()
-    s_min_node_idx, s_max_node_idx = second.network.get_node_innov_interval()
 
     for node_idx in range(num_in+num_out, len(node_genes)):
         first_has_node, second_has_node = first.network.has_node(node_idx), second.network.has_node(node_idx)

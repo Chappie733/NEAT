@@ -12,13 +12,14 @@ def convert(x: str):
 
 class Neat:
 
-    def __init__(self, config_file: str):
+    def __init__(self, config_file: str, eval_fitness=None):
         self.load_configs(config_file)
         self.genomes = []
         # a list of all the connection genes, each represented as a tuple:
         # (start_idx, end_idx, innovation_number); these are the standards so that if a gene
         # points from a -> b it always has the same innovation number
         self.global_conn_genes = []
+        self.eval_fitness = eval_fitness
 
     def load_configs(self, configs_file):
         lines = []
@@ -139,8 +140,7 @@ def eval_fitness(genomes):
         genome.fitness = int(genome.network._predict(x)+1)
 
 if __name__ == '__main__':
-    neat = Neat("configs.txt")
-    neat.eval_fitness = eval_fitness
+    neat = Neat("configs.txt", eval_fitness)
     neat.run(verbosity=0)
     best_genome = neat.genomes[0]
     for genome in neat.genomes:
